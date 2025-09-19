@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <title>排班表</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+
+        .top-bar {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            padding: 10px;
+            background: #f4f4f4;
+        }
+
+        .calendar {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+            max-width: 700px;
+            margin: auto;
+        }
+
+        .day {
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 100px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: flex-start;
+        }
+
+        .day.marked {
+            border: 2px solid red;
+        }
+
+        .day-number {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .shift {
+            font-size: 12px;
+            color: #333;
+            text-align: left;
+        }
+
+        .input-box {
+            width: 95%;
+            font-size: 12px;
+            margin-top: 3px;
+            padding: 2px;
+            border: 1px solid #aaa;
+            border-radius: 3px;
+        }
+
+        #loginForm {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border: 1px solid #ccc;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="top-bar">
+        <button id="loginBtn">登入</button>
+        <button id="logoutBtn" style="display:none;">登出</button>
+    </div>
+
+    <h2>排班表</h2>
+    <div class="calendar" id="calendar"></div>
+
+    <!-- 登入視窗 -->
+    <div id="loginForm">
+        <h3>登入</h3>
+        <input type="password" id="password" placeholder="輸入密碼" /><br><br>
+        <button id="submitLogin">確定</button>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
+        import { getFirestore, doc, getDoc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js";
+
+        // Firebase 設定
+        const firebaseConfig = {
+            apiKey: "AIzaSyBnmRph2s_0We26w4C0SmBjwl3WOlW36BE",
+            authDomain: "index-aa2f9.firebaseapp.com",
+            projectId: "index-aa2f9",
+            storageBucket: "index-aa2f9.firebasestorage.app",
+            messagingSenderId: "563705747961",
+            appId: "1:563705747961:web:c5988fa156621f370c8528",
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        const calendarEl = document.getElementById("calendar");
+        const daysInMonth = 31;
+        let isLoggedIn = false;
+
+        const PASSWORD = "admin4335"; // 登入密碼
+
+        // 渲染日曆
+        function renderCalendar() {
+            calendarEl.innerHTML = "";
+            for (let d = 1; d <= daysInMonth; d++) {
+                const cell = document.createElement("div");
+                cell.className = "day";
+                cell.innerHTML = `
+          <div class="day-number">${d}</div>
+          <input class="input-box" type="text" placeholder="輸入上班時間" ${isLoggedIn ? "" : "disabled"} />
+          <div class="shift"></div>
+        `;
+                const input = cell.querySelector(".input-box");
+                const shiftDiv = cell.querySelector(".shift");
+                const key = `day-${d}`;
+
+                // Firestore 即時監聽
+                onSnapshot(doc(db, "schedule", key), (snap) => {
+                    if (snap.exists()) {
+                        const value = snap.data().shift;
+                        input.value = value;
+                        shiftDiv.textContent = value;
+                        cell.classList.add("marked");
+                    } else {
+                        input.value = "";
+                        shiftDiv.textContent = "";
+                        cell.classList.remove("marked");
+                    }
+                });
+
+                if (isLoggedIn) {
+                    input.addEventListener("change", async () => {
+                        const value = input.value.trim();
+                        if (value) {
+                            await setDoc(doc(db, "schedule", key), { shift: value });
+                        } else {
+                            await deleteDoc(doc(db, "schedule", key));
+                        }
+                    });
+                }
+
+                calendarEl.appendChild(cell);
+            }
+        }
+
+        // 登入功能
+        const loginBtn = document.getElementById("loginBtn");
+        const logoutBtn = document.getElementById("logoutBtn");
+        const loginForm = document.getElementById("loginForm");
+        const submitLogin = document.getElementById("submitLogin");
+        const passwordInput = document.getElementById("password");
+
+        loginBtn.addEventListener("click", () => {
+            loginForm.style.display = "block";
+        });
+
+        submitLogin.addEventListener("click", () => {
+            if (passwordInput.value === PASSWORD) {
+                isLoggedIn = true;
+                loginForm.style.display = "none";
+                loginBtn.style.display = "none";
+                logoutBtn.style.display = "inline-block";
+                renderCalendar();
+            } else {
+                alert("密碼錯誤！");
+            }
+        });
+
+        logoutBtn.addEventListener("click", () => {
+            isLoggedIn = false;
+            loginBtn.style.display = "inline-block";
+            logoutBtn.style.display = "none";
+            renderCalendar();
+        });
+
+        renderCalendar();
+    </script>
+</body>
+
+</html>
